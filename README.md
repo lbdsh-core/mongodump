@@ -63,6 +63,7 @@ docker run --rm \
     -e AWS_ACCESS_KEY_ID="AKIA..." \
     -e AWS_SECRET_ACCESS_KEY="SECRET..." \
     -e AWS_DEFAULT_REGION="eu-north-1" \
+    -e INTERVAL=14 \
     -v $(pwd)/backups:/mongodb \
     ghcr.io/lbdsh-core/mongodump:latest
 ```
@@ -80,15 +81,15 @@ version: "3.9"
 
 services:
   mongo-backup:
-    image: ghcr.io/lbdsh-core/mongodump:0.1.0
+    image: ghcr.io/lbdsh-core/mongodump:latest
     environment:
       MONGO_URI: "mongodb://user:password@mongo:27017/"
       S3_BUCKET: "my-backup-bucket"
+      S3_PREFIX: "mongodb"    
       AWS_ACCESS_KEY_ID: "AKIA..."
       AWS_SECRET_ACCESS_KEY: "SECRET..."
       AWS_DEFAULT_REGION: "eu-north-1"
-      S3_PREFIX: "mongodb"
-      INTERVAL_DAYS: 14
+      INTERVAL: 14
     volumes:
         - ./backups:/mongodb
 ```
