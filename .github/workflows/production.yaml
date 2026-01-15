@@ -1,0 +1,59 @@
+name: CI/CD Pipeline - Production
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  versioning:
+    runs-on: [self-hosted, Linux, X64, lbd-staging]
+    container:
+      image: mcr.microsoft.com/dotnet/sdk:8.0
+    outputs:
+      GitVersion_SemVer: ${{ env.GitVersion_SemVer }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.1.1
+        with:
+          fetch-depth: 0 # 0 indica di ottenere tutta la cronologia
+      - name: Install GitVersion.Tool
+        id: gitversion
+        run: |
+          dotnet tool install --global GitVersion.Tool --version 5.12.0
+          export PATH="$PATH:/github/home/.dotnet/tools"
+          dotnet-gitversion /config ./GitVersion.yml /nocache /verbosity Diagnostic /output buildserver
+        env:
+          GIT_DEPTH: 10000
+      - name: Display Version
+        run: echo "Version> ${{ env.GitVersion_SemVer }}"
+
+  docker:
+    permissions: write-all
+    needs:
+      - versioning
+    runs-on: [self-hosted, Linux, X64, lbd-staging]
+    services:
+      docker:
+        image: docker:20.10.16-dind
+        options: --privileged
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Login to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build Docker image
+        run: docker build -t ghcr.io/lbd-core/${{vars.REPO_NAME}}:latest -t ghcr.io/lbd-core/${{vars.REPO_NAME}}:${{ needs.versioning.outputs.GitVersion_SemVer }} -f ./ci/Dockerfile .
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/lbd-core/${{vars.REPO_NAME}}:latest
+          docker push ghcr.io/lbd-core/${{vars.REPO_NAME}}:${{ needs.versioning.outputs.GitVersion_SemVer }}
+      - name: Tag repo with new version
+        uses: cardinalby/git-tag-action@master
+        env:
+          TAG: ${{ needs.versioning.outputs.GitVersion_SemVer }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
