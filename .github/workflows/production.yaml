@@ -7,7 +7,7 @@ on:
 
 jobs:
   versioning:
-    runs-on: [self-hosted, Linux, X64, lbd-staging]
+    runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/dotnet/sdk:8.0
     outputs:
@@ -32,7 +32,7 @@ jobs:
     permissions: write-all
     needs:
       - versioning
-    runs-on: [self-hosted, Linux, X64, lbd-staging]
+    runs-on: ubuntu-latest
     services:
       docker:
         image: docker:20.10.16-dind
