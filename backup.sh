@@ -46,7 +46,6 @@ rm -rf "$DEST_DIR"
 
 # =========================
 log "Uploading to S3..."
-echo "Uploading $ARCHIVE to s3://$S3_BUCKET/$S3_PREFIX/$DATE"
 aws s3 cp \
   "$ARCHIVE" \
   "s3://$S3_BUCKET/$S3_PREFIX/$DATE/$(basename "$ARCHIVE")" \
