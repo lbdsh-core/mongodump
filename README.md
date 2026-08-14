@@ -144,8 +144,9 @@ docker compose run --rm mongo-backup backup
 
 ## 📝 Logs
 
-Both modes write a structured log to `/mongodb/backup.log` — `./backups/backup.log`
-with the volume above — including the output of `mongodump` and `aws`:
+Everything is logged to the container console — no log file — including the
+output of `mongodump` and `aws`. Scheduled runs are redirected to PID 1's stdout,
+so they appear in `docker logs` exactly like the startup messages:
 
 ```text
 [2026-01-15 02:00:01] [INFO] [run=20260115T020001Z-42] [1/5] Dumping MongoDB into /mongodb/backup/2026-01-15_02-00 ...
@@ -153,15 +154,16 @@ with the volume above — including the output of `mongodump` and `aws`:
 [2026-01-15 02:00:31] [INFO] [run=20260115T020001Z-42] [4/5] Upload completed in 14s -> s3://my-backup-bucket/mongodb/2026-01-15_02-00/2026-01-15_02-00.tar.gz
 ```
 
-Credentials are masked. A failed run logs the step, the exit code and the
+Credentials are masked, including when `mongodump` echoes the connection string
+back in an error message. A failed run logs the step, the exit code and the
 failing command, and the temporary dump is kept on disk for inspection.
 
 ```bash
-docker compose exec mongo-backup tail -f /mongodb/backup.log
+docker logs -f mongo-backup
 ```
 
-The cron daemon's own log (job start times, scheduling errors) is kept
-separately in `/mongodb/cron.log`.
+The cron daemon's own messages (job start times, scheduling errors) go to the
+same console.
 
 ---
 

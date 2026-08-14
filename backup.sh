@@ -4,24 +4,17 @@ set -eEuo pipefail
 # =========================
 # LOGGING
 # =========================
-LOG_FILE="${LOG_FILE:-/mongodb/backup.log}"
+# Everything goes to the console (stdout/stderr) - no log file. Under cron the
+# job's output is redirected to PID 1's stdout so it shows up in `docker logs`.
 BACKUP_ROOT="${BACKUP_ROOT:-/mongodb/backup}"
 RUN_ID="$(date -u +"%Y%m%dT%H%M%SZ")-$$"
 
-mkdir -p "$(dirname "$LOG_FILE")"
-
-# Colours only on an interactive terminal: under cron the output is redirected
-# to a file and the escape sequences would end up in the log.
+# Colours only on an interactive terminal, so they do not pollute `docker logs`.
 if [ -t 1 ]; then
   C_INFO=$'\033[32m'; C_WARN=$'\033[33m'; C_ERR=$'\033[31m'; C_OFF=$'\033[0m'
 else
   C_INFO=""; C_WARN=""; C_ERR=""; C_OFF=""
 fi
-
-# schedule.sh already redirects the cron job's output into $LOG_FILE, so when it
-# sets this flag we only print to stdout - otherwise every line is written twice.
-LOG_TEE=1
-[ "${BACKUP_LOG_REDIRECTED:-0}" = "1" ] && LOG_TEE=0
 
 # Redact the credentials of any URI on a log line. The character class stops at
 # the first '/', so it never leaves the authority section, and it is greedy: a
@@ -42,7 +35,6 @@ _log() {
   else
     printf '%s%s%s\n' "$colour" "$line" "$C_OFF"
   fi
-  [ "$LOG_TEE" -eq 1 ] && printf '%s\n' "$line" >> "$LOG_FILE"
   return 0
 }
 
@@ -129,7 +121,6 @@ log "  s3 destination   : $S3_TARGET"
 log "  local dump dir   : $DEST_DIR"
 log "  local archive    : $ARCHIVE"
 log "  local retention  : $INTERVAL day(s) under $BACKUP_ROOT"
-log "  log file         : $LOG_FILE"
 
 STEP="workspace preparation"
 mkdir -p "$BACKUP_ROOT"

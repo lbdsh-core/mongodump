@@ -4,9 +4,10 @@ set -euo pipefail
 # =========================
 # LOGGING
 # =========================
-LOG_FILE="${LOG_FILE:-/mongodb/backup.log}"
-
-mkdir -p "$(dirname "$LOG_FILE")"
+# Everything goes to the console, no log file. Cron jobs do not inherit the
+# container's stdout, so scheduled runs are redirected to PID 1's stdout - that
+# is the file descriptor `docker logs` reads.
+CONSOLE="${CONSOLE:-/proc/1/fd/1}"
 
 if [ -t 1 ]; then
   C_INFO=$'\033[32m'; C_WARN=$'\033[33m'; C_ERR=$'\033[31m'; C_OFF=$'\033[0m'
@@ -22,7 +23,6 @@ _log() {
   else
     printf '%s%s%s\n' "$colour" "$line" "$C_OFF"
   fi
-  printf '%s\n' "$line" >> "$LOG_FILE"
   return 0
 }
 
@@ -45,7 +45,11 @@ log "===== Installing the backup cron job ====="
 log "  backup script : $MONGODUMP_SCRIPT"
 log "  schedule      : $CRON_SCHEDULE"
 log "  env snapshot  : $BACKUP_ENV_FILE"
-log "  log file      : $LOG_FILE"
+log "  console       : $CONSOLE"
+
+if [ ! -w "$CONSOLE" ]; then
+  log_warn "$CONSOLE is not writable - scheduled runs will not show up in 'docker logs'"
+fi
 
 if [ ! -f "$MONGODUMP_SCRIPT" ]; then
   log_error "Backup script not found at $MONGODUMP_SCRIPT - nothing to schedule"
@@ -84,7 +88,7 @@ EXPORTED_VARS=(
   AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
   AWS_DEFAULT_REGION AWS_ENDPOINT_URL
   INTERVAL
-  LOG_FILE BACKUP_ROOT
+  BACKUP_ROOT
 )
 
 umask 077
@@ -130,10 +134,9 @@ sed -i '/backup\.sh/d' "$CRON_FILE"
 # Add new cron job:
 #  - bash -c, so the %q quoting written above is interpreted by bash and not by sh
 #  - the env snapshot is sourced first, otherwise the job sees no configuration
-#  - the redirect is what makes scheduled runs visible in the log
-#  - BACKUP_LOG_REDIRECTED tells backup.sh not to write each line to the file twice
-CRON_CMD="bash -c '. $BACKUP_ENV_FILE && BACKUP_LOG_REDIRECTED=1 exec bash \"$MONGODUMP_SCRIPT\"'"
-CRON_LINE="$CRON_SCHEDULE $CRON_CMD >> \"$LOG_FILE\" 2>&1"
+#  - the redirect sends the run to PID 1's stdout, i.e. to `docker logs`
+CRON_CMD="bash -c '. $BACKUP_ENV_FILE && exec bash \"$MONGODUMP_SCRIPT\"'"
+CRON_LINE="$CRON_SCHEDULE $CRON_CMD >> $CONSOLE 2>&1"
 # '%' is a newline for cron and must be escaped inside the command
 CRON_LINE="${CRON_LINE//%/\\%}"
 printf '%s\n' "$CRON_LINE" >> "$CRON_FILE"
@@ -147,4 +150,4 @@ crontab -l 2>/dev/null | while IFS= read -r entry; do
 done
 
 log "Scheduled backup with cron: $CRON_SCHEDULE"
-log "Scheduled runs append their full output to $LOG_FILE - follow it with: tail -f $LOG_FILE"
+log "Scheduled runs print to the container console - follow them with: docker logs -f <container>"
