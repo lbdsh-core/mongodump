@@ -1,0 +1,4 @@
+# The scripts are executed inside a Linux container: CRLF would turn the shebang
+# into "#!/bin/bash\r" and break every entrypoint.
+*.sh text eol=lf
+Dockerfile text eol=lf
